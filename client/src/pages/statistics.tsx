@@ -22,6 +22,11 @@ export default function Statistics({ userId }: StatisticsProps) {
   // Fetch expiring products (next 7 days)
   const { data: expiringProducts = [] } = useQuery<ProductWithCategory[]>({
     queryKey: ["/api/expiring", userId, 7],
+    queryFn: async () => {
+      const response = await fetch(`/api/expiring/${userId}?days=7`);
+      if (!response.ok) throw new Error('Failed to fetch expiring products');
+      return response.json();
+    },
   });
 
   // Calculate category statistics

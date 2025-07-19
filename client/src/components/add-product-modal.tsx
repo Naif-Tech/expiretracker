@@ -11,6 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Camera, QrCode, X } from "lucide-react";
 import { insertProductSchema } from "@shared/schema";
 import type { Category } from "@shared/schema";
+import CameraScanner from "./camera-scanner";
+import BarcodeScanner from "./barcode-scanner";
 
 const formSchema = insertProductSchema.extend({
   expiryDate: z.string().min(1, "تاريخ الانتهاء مطلوب"),
@@ -37,8 +39,8 @@ export default function AddProductModal({
   userId,
   isLoading = false
 }: AddProductModalProps) {
-  const [cameraMode, setCameraMode] = useState(false);
-  const [barcodeMode, setBarcodeMode] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -58,31 +60,60 @@ export default function AddProductModal({
   });
 
   const handleSubmit = (data: FormData) => {
-    const expiryDate = new Date(data.expiryDate);
-    onSubmit({
-      ...data,
-      expiryDate,
+    // Convert string date to ISO string for API
+    const expiryDate = new Date(data.expiryDate).toISOString();
+    const submitData = {
+      name: data.name,
+      nameAr: data.nameAr || null,
+      categoryId: data.categoryId || null,
+      expiryDate: expiryDate,
+      quantity: data.quantity || null,
+      notes: data.notes || null,
+      barcode: data.barcode || null,
+      imageUrl: data.imageUrl || null,
+      isUsed: data.isUsed || false,
+      isExpired: data.isExpired || false,
+      alertDays: data.alertDays || 7,
       userId,
-    });
+    };
+    
+    onSubmit(submitData);
     form.reset();
     onClose();
   };
 
-  const handleCameraCapture = () => {
-    // Mock camera functionality
-    setCameraMode(true);
-    // In a real implementation, this would open the camera
-    // and use AI to suggest product names and categories
-    alert("مؤقتاً: ستتم إضافة وظيفة الكاميرا والذكاء الاصطناعي قريباً");
-    setCameraMode(false);
+  const handleCameraCapture = (imageData: string) => {
+    // Set the captured image in the form
+    form.setValue('imageUrl', imageData);
+    
+    // AI suggestion simulation - in real app, send image to AI service
+    const suggestions = [
+      { name: "حليب نادك", nameAr: "حليب نادك", categoryId: 1 },
+      { name: "خبز أبيض", nameAr: "خبز أبيض", categoryId: 1 },
+      { name: "شامبو", nameAr: "شامبو", categoryId: 2 },
+      { name: "دواء باراسيتامول", nameAr: "دواء باراسيتامول", categoryId: 3 },
+    ];
+    
+    const randomSuggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
+    form.setValue('name', randomSuggestion.name);
+    form.setValue('nameAr', randomSuggestion.nameAr);
+    form.setValue('categoryId', randomSuggestion.categoryId);
   };
 
-  const handleBarcodeScanner = () => {
-    // Mock barcode scanning functionality
-    setBarcodeMode(true);
-    // In a real implementation, this would open the barcode scanner
-    alert("مؤقتاً: ستتم إضافة وظيفة مسح الباركود قريباً");
-    setBarcodeMode(false);
+  const handleBarcodeScanned = (barcode: string) => {
+    // Set the barcode in the form
+    form.setValue('barcode', barcode);
+    
+    // Mock product lookup - in real app, query product database by barcode
+    const productData = {
+      name: "منتج ممسوح ضوئياً",
+      nameAr: "منتج ممسوح ضوئياً", 
+      categoryId: 1,
+    };
+    
+    form.setValue('name', productData.name);
+    form.setValue('nameAr', productData.nameAr);
+    form.setValue('categoryId', productData.categoryId);
   };
 
   return (
@@ -101,12 +132,12 @@ export default function AddProductModal({
               type="button"
               variant="outline"
               className="flex flex-col items-center justify-center p-4 h-auto border-2 border-dashed hover:border-primary hover:bg-primary/5"
-              onClick={handleCameraCapture}
-              disabled={cameraMode}
+              onClick={() => setShowCameraScanner(true)}
+              disabled={false}
             >
               <Camera className="w-8 h-8 text-gray-400 mb-2" />
               <span className="text-sm text-gray-600 dark:text-gray-400 font-arabic">
-                {cameraMode ? "جاري التشغيل..." : "التقط صورة"}
+                التقط صورة
               </span>
             </Button>
 
@@ -114,12 +145,12 @@ export default function AddProductModal({
               type="button"
               variant="outline"
               className="flex flex-col items-center justify-center p-4 h-auto border-2 border-dashed hover:border-primary hover:bg-primary/5"
-              onClick={handleBarcodeScanner}
-              disabled={barcodeMode}
+              onClick={() => setShowBarcodeScanner(true)}
+              disabled={false}
             >
               <QrCode className="w-8 h-8 text-gray-400 mb-2" />
               <span className="text-sm text-gray-600 dark:text-gray-400 font-arabic">
-                {barcodeMode ? "جاري المسح..." : "مسح الباركود"}
+                مسح الباركود
               </span>
             </Button>
           </div>
@@ -255,6 +286,20 @@ export default function AddProductModal({
             </form>
           </Form>
         </div>
+
+        {/* Camera Scanner Modal */}
+        <CameraScanner
+          isOpen={showCameraScanner}
+          onClose={() => setShowCameraScanner(false)}
+          onCapture={handleCameraCapture}
+        />
+
+        {/* Barcode Scanner Modal */}
+        <BarcodeScanner
+          isOpen={showBarcodeScanner}
+          onClose={() => setShowBarcodeScanner(false)}
+          onScan={handleBarcodeScanned}
+        />
       </DialogContent>
     </Dialog>
   );

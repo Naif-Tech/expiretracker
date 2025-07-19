@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Edit, CheckCircle } from "lucide-react";
+import { Edit, CheckCircle, Trash2, MoreVertical, Check, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import type { ProductWithCategory } from "@shared/schema";
@@ -10,14 +12,17 @@ interface ProductCardProps {
   onMarkAsUsed: (id: number) => void;
   onMarkAsExpired: (id: number) => void;
   onEdit: (product: ProductWithCategory) => void;
+  onDelete?: (id: number) => void;
 }
 
 export default function ProductCard({ 
   product, 
   onMarkAsUsed, 
   onMarkAsExpired, 
-  onEdit 
+  onEdit,
+  onDelete
 }: ProductCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'expired':
@@ -72,6 +77,13 @@ export default function ProductCard({
     } else {
       onMarkAsUsed(product.id);
     }
+  };
+
+  const handleDeleteConfirm = () => {
+    if (onDelete) {
+      onDelete(product.id);
+    }
+    setShowDeleteConfirm(false);
   };
 
   return (

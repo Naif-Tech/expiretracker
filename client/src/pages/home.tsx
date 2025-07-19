@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Filter, Plus, Bell, Settings as SettingsIcon, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import StatsCards from "@/components/stats-cards";
 import ProductCard from "@/components/product-card";
 import AddProductModal from "@/components/add-product-modal";
+import NotificationCenter from "@/components/notification-center";
 import { apiRequest } from "@/lib/queryClient";
-import type { ProductWithCategory, Category, DashboardStats } from "@shared/schema";
+import type { ProductWithCategory, Category, DashboardStats, Notification } from "@shared/schema";
 
 interface HomeProps {
   userId: number;
@@ -17,6 +19,7 @@ interface HomeProps {
 export default function Home({ userId }: HomeProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -43,6 +46,13 @@ export default function Home({ userId }: HomeProps) {
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories", userId],
   });
+
+  // Fetch notifications for badge count
+  const { data: notifications = [] } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications", userId],
+  });
+
+  const unreadNotifications = notifications.filter(n => !n.isRead).length;
 
   // Add product mutation
   const addProductMutation = useMutation({
@@ -96,6 +106,28 @@ export default function Home({ userId }: HomeProps) {
     },
   });
 
+  // Delete product mutation
+  const deleteProductMutation = useMutation({
+    mutationFn: async (productId: number) => {
+      return apiRequest("DELETE", `/api/products/${productId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      toast({
+        title: "تم حذف المنتج",
+        description: "تم حذف المنتج من قائمتك بنجاح",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "خطأ في حذف المنتج",
+        description: "حدث خطأ أثناء حذف المنتج، يرجى المحاولة مرة أخرى",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddProduct = (productData: any) => {
     addProductMutation.mutate(productData);
   };
@@ -106,6 +138,10 @@ export default function Home({ userId }: HomeProps) {
 
   const handleMarkAsExpired = (productId: number) => {
     markAsExpiredMutation.mutate(productId);
+  };
+
+  const handleDeleteProduct = (productId: number) => {
+    deleteProductMutation.mutate(productId);
   };
 
   const handleEditProduct = (product: ProductWithCategory) => {
@@ -145,8 +181,21 @@ export default function Home({ userId }: HomeProps) {
               </div>
             </div>
             <div className="flex items-center space-x-reverse space-x-2">
-              <Button variant="ghost" size="sm" className="p-2 rounded-full">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="p-2 rounded-full relative"
+                onClick={() => setIsNotificationCenterOpen(true)}
+              >
                 <Bell className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+                {unreadNotifications > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-1 -left-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                  >
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </Badge>
+                )}
               </Button>
               <Button variant="ghost" size="sm" className="p-2 rounded-full">
                 <SettingsIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
@@ -226,6 +275,7 @@ export default function Home({ userId }: HomeProps) {
                 onMarkAsUsed={handleMarkAsUsed}
                 onMarkAsExpired={handleMarkAsExpired}
                 onEdit={handleEditProduct}
+                onDelete={handleDeleteProduct}
               />
             ))}
           </div>
@@ -249,6 +299,13 @@ export default function Home({ userId }: HomeProps) {
         categories={categories}
         userId={userId}
         isLoading={addProductMutation.isPending}
+      />
+
+      {/* Notification Center */}
+      <NotificationCenter
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        userId={userId}
       />
     </div>
   );

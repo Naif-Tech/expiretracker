@@ -130,10 +130,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/products", async (req, res) => {
     try {
-      const productData = insertProductSchema.parse(req.body);
+      // Convert date string to Date object if needed
+      const requestData = { ...req.body };
+      if (requestData.expiryDate && typeof requestData.expiryDate === 'string') {
+        requestData.expiryDate = new Date(requestData.expiryDate);
+      }
+      
+      const productData = insertProductSchema.parse(requestData);
       const product = await storage.createProduct(productData);
       res.status(201).json(product);
     } catch (error) {
+      console.error("Product creation error:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid product data", details: error.errors });
       }
@@ -235,6 +242,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(notifications);
     } catch (error) {
       res.status(500).json({ error: "Failed to get notifications" });
+    }
+  });
+
+  app.post("/api/notifications", async (req, res) => {
+    try {
+      const notificationData = req.body;
+      const notification = await storage.createNotification(notificationData);
+      res.status(201).json(notification);
+    } catch (error) {
+      console.error("Notification creation error:", error);
+      res.status(500).json({ error: "Failed to create notification" });
     }
   });
 
