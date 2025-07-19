@@ -6,6 +6,8 @@ import {
   type Notification, type InsertNotification,
   type DashboardStats
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, sql, like } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -43,76 +45,49 @@ export interface IStorage {
   markNotificationAsRead(id: number): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User> = new Map();
-  private categories: Map<number, Category> = new Map();
-  private products: Map<number, Product> = new Map();
-  private notifications: Map<number, Notification> = new Map();
-  private currentUserId = 1;
-  private currentCategoryId = 1;
-  private currentProductId = 1;
-  private currentNotificationId = 1;
-
+export class DatabaseStorage implements IStorage {
   constructor() {
     this.initializeDefaultData();
   }
 
-  private initializeDefaultData() {
-    // Create default user
-    const defaultUser: User = {
-      id: this.currentUserId++,
-      username: "أحمد محمد",
-      email: "ahmed@example.com",
-      displayName: "أحمد محمد",
-      photoURL: null,
-      firebaseUID: "default-user",
-      createdAt: new Date(),
-    };
-    this.users.set(defaultUser.id, defaultUser);
+  private async initializeDefaultData() {
+    // Check if default user exists
+    const [existingUser] = await db.select().from(users).where(eq(users.firebaseUID, "default-user"));
+    
+    if (!existingUser) {
+      // Create default user
+      const [defaultUser] = await db
+        .insert(users)
+        .values({
+          username: "أحمد محمد",
+          email: "ahmed@example.com",
+          displayName: "أحمد محمد",
+          photoURL: null,
+          firebaseUID: "default-user",
+        })
+        .returning();
 
-    // Create default categories
-    const defaultCategories = [
-      { nameAr: "مواد غذائية", name: "Food", icon: "🍎", color: "#10B981" },
-      { nameAr: "أدوية", name: "Medicine", icon: "💊", color: "#3B82F6" },
-      { nameAr: "مستحضرات تجميل", name: "Cosmetics", icon: "🧴", color: "#8B5CF6" },
-      { nameAr: "مستلزمات منزلية", name: "Household", icon: "🧽", color: "#F59E0B" },
-    ];
-
-    defaultCategories.forEach(cat => {
-      const category: Category = {
-        id: this.currentCategoryId++,
-        name: cat.name,
-        nameAr: cat.nameAr,
-        icon: cat.icon,
-        color: cat.color,
-        userId: defaultUser.id,
-        isDefault: true,
-        createdAt: new Date(),
-      };
-      this.categories.set(category.id, category);
-    });
+      // Create default categories
+      await this.createDefaultCategories(defaultUser.id);
+    }
   }
 
   // Users
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByFirebaseUID(firebaseUID: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.firebaseUID === firebaseUID);
+    const [user] = await db.select().from(users).where(eq(users.firebaseUID, firebaseUID));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const user: User = {
-      ...insertUser,
-      displayName: insertUser.displayName ?? null,
-      email: insertUser.email ?? null,
-      photoURL: insertUser.photoURL ?? null,
-      firebaseUID: insertUser.firebaseUID ?? null,
-      id: this.currentUserId++,
-      createdAt: new Date(),
-    };
-    this.users.set(user.id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     
     // Create default categories for new user
     await this.createDefaultCategories(user.id);
@@ -121,46 +96,44 @@ export class MemStorage implements IStorage {
   }
 
   async updateUser(id: number, updates: Partial<InsertUser>): Promise<User | undefined> {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-    
-    const updatedUser = { ...user, ...updates };
-    this.users.set(id, updatedUser);
-    return updatedUser;
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
   }
 
   // Categories
   async getCategories(userId: number): Promise<Category[]> {
-    return Array.from(this.categories.values()).filter(cat => cat.userId === userId);
+    return await db.select().from(categories).where(eq(categories.userId, userId));
   }
 
   async getCategory(id: number): Promise<Category | undefined> {
-    return this.categories.get(id);
+    const [category] = await db.select().from(categories).where(eq(categories.id, id));
+    return category || undefined;
   }
 
   async createCategory(insertCategory: InsertCategory): Promise<Category> {
-    const category: Category = {
-      ...insertCategory,
-      userId: insertCategory.userId ?? null,
-      isDefault: insertCategory.isDefault ?? null,
-      id: this.currentCategoryId++,
-      createdAt: new Date(),
-    };
-    this.categories.set(category.id, category);
+    const [category] = await db
+      .insert(categories)
+      .values(insertCategory)
+      .returning();
     return category;
   }
 
   async updateCategory(id: number, updates: Partial<InsertCategory>): Promise<Category | undefined> {
-    const category = this.categories.get(id);
-    if (!category) return undefined;
-    
-    const updatedCategory = { ...category, ...updates };
-    this.categories.set(id, updatedCategory);
-    return updatedCategory;
+    const [category] = await db
+      .update(categories)
+      .set(updates)
+      .where(eq(categories.id, id))
+      .returning();
+    return category || undefined;
   }
 
   async deleteCategory(id: number): Promise<boolean> {
-    return this.categories.delete(id);
+    const result = await db.delete(categories).where(eq(categories.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 
   async createDefaultCategories(userId: number): Promise<Category[]> {
@@ -188,46 +161,45 @@ export class MemStorage implements IStorage {
 
   // Products
   async getProducts(userId: number): Promise<ProductWithCategory[]> {
-    const userProducts = Array.from(this.products.values()).filter(p => p.userId === userId);
-    return userProducts.map(product => this.enrichProduct(product));
+    const productsWithCategories = await db
+      .select({
+        product: products,
+        category: categories,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(eq(products.userId, userId));
+
+    return productsWithCategories.map(({ product, category }) => 
+      this.enrichProduct(product, category)
+    );
   }
 
   async getProduct(id: number): Promise<Product | undefined> {
-    return this.products.get(id);
+    const [product] = await db.select().from(products).where(eq(products.id, id));
+    return product || undefined;
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
-    const product: Product = {
-      ...insertProduct,
-      userId: insertProduct.userId ?? null,
-      nameAr: insertProduct.nameAr ?? null,
-      categoryId: insertProduct.categoryId ?? null,
-      quantity: insertProduct.quantity ?? null,
-      notes: insertProduct.notes ?? null,
-      barcode: insertProduct.barcode ?? null,
-      imageUrl: insertProduct.imageUrl ?? null,
-      isUsed: insertProduct.isUsed ?? null,
-      isExpired: insertProduct.isExpired ?? null,
-      alertDays: insertProduct.alertDays ?? null,
-      id: this.currentProductId++,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.products.set(product.id, product);
+    const [product] = await db
+      .insert(products)
+      .values(insertProduct)
+      .returning();
     return product;
   }
 
   async updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product | undefined> {
-    const product = this.products.get(id);
-    if (!product) return undefined;
-    
-    const updatedProduct = { ...product, ...updates, updatedAt: new Date() };
-    this.products.set(id, updatedProduct);
-    return updatedProduct;
+    const [product] = await db
+      .update(products)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
+    return product || undefined;
   }
 
   async deleteProduct(id: number): Promise<boolean> {
-    return this.products.delete(id);
+    const result = await db.delete(products).where(eq(products.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 
   async markProductAsUsed(id: number): Promise<Product | undefined> {
@@ -239,17 +211,41 @@ export class MemStorage implements IStorage {
   }
 
   async getProductsByCategory(userId: number, categoryId: number): Promise<ProductWithCategory[]> {
-    const products = await this.getProducts(userId);
-    return products.filter(p => p.categoryId === categoryId);
+    const productsWithCategories = await db
+      .select({
+        product: products,
+        category: categories,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(and(eq(products.userId, userId), eq(products.categoryId, categoryId)));
+
+    return productsWithCategories.map(({ product, category }) => 
+      this.enrichProduct(product, category)
+    );
   }
 
   async searchProducts(userId: number, query: string): Promise<ProductWithCategory[]> {
-    const products = await this.getProducts(userId);
-    const searchTerm = query.toLowerCase();
-    return products.filter(p => 
-      p.name.toLowerCase().includes(searchTerm) ||
-      (p.nameAr && p.nameAr.includes(searchTerm)) ||
-      (p.notes && p.notes.toLowerCase().includes(searchTerm))
+    const productsWithCategories = await db
+      .select({
+        product: products,
+        category: categories,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(
+        and(
+          eq(products.userId, userId),
+          sql`(
+            ${products.name} ILIKE ${`%${query}%`} OR 
+            ${products.nameAr} ILIKE ${`%${query}%`} OR 
+            ${products.notes} ILIKE ${`%${query}%`}
+          )`
+        )
+      );
+
+    return productsWithCategories.map(({ product, category }) => 
+      this.enrichProduct(product, category)
     );
   }
 
@@ -280,34 +276,26 @@ export class MemStorage implements IStorage {
 
   // Notifications
   async getNotifications(userId: number): Promise<Notification[]> {
-    return Array.from(this.notifications.values()).filter(n => n.userId === userId);
+    return await db.select().from(notifications).where(eq(notifications.userId, userId));
   }
 
   async createNotification(insertNotification: InsertNotification): Promise<Notification> {
-    const notification: Notification = {
-      ...insertNotification,
-      userId: insertNotification.userId ?? null,
-      productId: insertNotification.productId ?? null,
-      isRead: insertNotification.isRead ?? null,
-      scheduledAt: insertNotification.scheduledAt ?? null,
-      sentAt: insertNotification.sentAt ?? null,
-      id: this.currentNotificationId++,
-      createdAt: new Date(),
-    };
-    this.notifications.set(notification.id, notification);
+    const [notification] = await db
+      .insert(notifications)
+      .values(insertNotification)
+      .returning();
     return notification;
   }
 
   async markNotificationAsRead(id: number): Promise<boolean> {
-    const notification = this.notifications.get(id);
-    if (!notification) return false;
-    
-    this.notifications.set(id, { ...notification, isRead: true });
-    return true;
+    const result = await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 
-  private enrichProduct(product: Product): ProductWithCategory {
-    const category = product.categoryId ? this.categories.get(product.categoryId) : undefined;
+  private enrichProduct(product: Product, category?: Category | null): ProductWithCategory {
     const now = new Date();
     const expiryDate = new Date(product.expiryDate);
     const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -321,11 +309,11 @@ export class MemStorage implements IStorage {
 
     return {
       ...product,
-      category,
+      category: category || undefined,
       daysUntilExpiry,
       status,
     };
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

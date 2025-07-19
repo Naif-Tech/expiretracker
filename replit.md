@@ -23,7 +23,8 @@ Preferred communication style: Simple, everyday language.
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
 - **Database ORM**: Drizzle ORM with PostgreSQL dialect
-- **Database Provider**: Neon Database (serverless PostgreSQL)
+- **Database Provider**: PostgreSQL (Replit managed)
+- **Data Storage**: DatabaseStorage class implementing IStorage interface
 - **API Design**: RESTful API endpoints for CRUD operations
 - **Session Management**: PostgreSQL session storage with connect-pg-simple
 - **Development**: TSX for TypeScript execution during development
@@ -103,10 +104,12 @@ Preferred communication style: Simple, everyday language.
 - Database migrations via Drizzle Kit
 
 ### Database Management
-- Drizzle migrations stored in `./migrations`
-- Schema defined in `shared/schema.ts` for type sharing
-- PostgreSQL connection via environment variable `DATABASE_URL`
-- Session storage using PostgreSQL with connect-pg-simple
+- **Database**: PostgreSQL with Drizzle ORM integration
+- **Schema**: Defined in `shared/schema.ts` with TypeScript types
+- **Storage**: DatabaseStorage class replaces MemStorage for persistent data
+- **Tables**: users, categories, products, notifications with proper relations
+- **Connection**: PostgreSQL via DATABASE_URL environment variable
+- **Migrations**: Managed via `npm run db:push` command
 
 ### Configuration
 - Environment-based configuration for database and Firebase
