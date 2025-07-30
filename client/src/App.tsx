@@ -13,6 +13,8 @@ import Categories from "@/pages/categories";
 import Settings from "@/pages/settings";
 import BottomNavigation from "@/components/bottom-navigation";
 
+import Footer from "@/components/footer";
+
 function Router() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [activeTab, setActiveTab] = useState("products");
@@ -65,9 +67,12 @@ function Router() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900" dir="rtl">
-      {renderActiveTab()}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col" dir="rtl">
+      <div className="flex-1">
+        {renderActiveTab()}
+      </div>
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <Footer />
     </div>
   );
 }

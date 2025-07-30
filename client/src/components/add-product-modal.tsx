@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,6 +39,15 @@ export default function AddProductModal({
   userId,
   isLoading = false
 }: AddProductModalProps) {
+  const [showEntryHint, setShowEntryHint] = useState(false);
+  useEffect(() => {
+    if (isOpen) {
+      const hasSeenEntryHint = localStorage.getItem("hasSeenEntryHint");
+      if (!hasSeenEntryHint) {
+        setTimeout(() => setShowEntryHint(true), 800);
+      }
+    }
+  }, [isOpen]);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
@@ -118,7 +127,23 @@ export default function AddProductModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="sm:max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto relative" dir="rtl">
+        {/* Entry Hint */}
+        {showEntryHint && (
+          <div className="absolute -top-20 left-0 right-0 mx-auto bg-white dark:bg-gray-800 border border-primary shadow-lg rounded-2xl px-5 py-3 flex items-center gap-3 z-40 animate-fade-in-up w-fit" style={{direction: 'rtl'}}>
+            <span className="font-arabic text-primary text-base">يمكنك إضافة منتج يدويًا أو عبر الكاميرا أو الباركود!</span>
+            <button
+              onClick={() => {
+                setShowEntryHint(false);
+                localStorage.setItem("hasSeenEntryHint", "true");
+              }}
+              className="ml-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label="إغلاق التعليمات"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+        )}
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 font-arabic">
             إضافة منتج جديد
@@ -238,6 +263,7 @@ export default function AddProductModal({
                         placeholder="1"
                         className="text-right"
                         {...field}
+                        value={field.value ?? ''}
                         onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                       />
                     </FormControl>
@@ -258,6 +284,7 @@ export default function AddProductModal({
                         rows={3}
                         className="text-right font-arabic resize-none"
                         {...field}
+                        value={field.value ?? ''}
                       />
                     </FormControl>
                     <FormMessage />

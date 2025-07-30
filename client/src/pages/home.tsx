@@ -1,4 +1,7 @@
+// ...existing code...
+
 import { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Filter, Plus, Bell, Settings as SettingsIcon, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +20,13 @@ interface HomeProps {
 }
 
 export default function Home({ userId }: HomeProps) {
+  const [showAddHint, setShowAddHint] = useState(false);
+  useEffect(() => {
+    const hasSeenAddHint = localStorage.getItem("hasSeenAddHint");
+    if (!hasSeenAddHint) {
+      setTimeout(() => setShowAddHint(true), 1200);
+    }
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
@@ -164,7 +174,7 @@ export default function Home({ userId }: HomeProps) {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 relative">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
         <div className="px-4 py-4">
@@ -282,14 +292,33 @@ export default function Home({ userId }: HomeProps) {
         )}
       </div>
 
+
       {/* Floating Add Button */}
       <Button
         onClick={() => setIsAddModalOpen(true)}
         className="fixed bottom-20 left-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg hover:bg-primary/90 transition-all duration-200 z-30"
         size="sm"
+        aria-label="إضافة منتج جديد"
       >
         <Plus className="w-6 h-6" />
       </Button>
+
+      {/* Add Button Hint */}
+      {showAddHint && (
+        <div className="fixed bottom-36 left-8 bg-white dark:bg-gray-800 border border-primary shadow-lg rounded-2xl px-5 py-4 flex items-center gap-3 z-40 animate-fade-in-up" style={{direction: 'rtl'}}>
+          <span className="font-arabic text-primary text-base">اضغط هنا لإضافة منتج جديد!</span>
+          <button
+            onClick={() => {
+              setShowAddHint(false);
+              localStorage.setItem("hasSeenAddHint", "true");
+            }}
+            className="ml-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="إغلاق التعليمات"
+          >
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+      )}
 
       {/* Add Product Modal */}
       <AddProductModal
